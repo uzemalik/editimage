@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pro Image Editor — Single File</title>
+  <!-- Fabric.js for canvas + tinycolor for color handling -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js" integrity="sha512-/t3k6oF6b2k3pK1a3bN9mO4xg1v3f3b8lGmZL1rKZ3x0xYbQf2c2TqV1H6KjQ0m4t8x9t5G4d3e2f1a0b9c8w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tinycolor/1.4.2/tinycolor.min.js" integrity="sha512-+e0k8Yk1aKZbG0q3V2qV5JQ7M2s8n3c9pZfQ6Y7b1c8d6e4f3g2h1i0j9k8l7m6n5o4p3q2r1s0t9u8v7w6x5y4z==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <style>
+    :root{--accent:#2563eb;--bg:#0f172a;--panel:#0b1220;--muted:#94a3b8;}
+    html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial}
+    body{display:flex;gap:12px;padding:12px;background:linear-gradient(180deg,#071029 0%, #071926 100%);color:#e6eef8}
+    .sidebar{width:320px;background:rgba(8,12,20,0.6);border-radius:12px;padding:12px;box-shadow:0 6px 18px rgba(2,6,23,0.6);overflow:auto}
+    .canvas-wrap{flex:1;display:flex;flex-direction:column;gap:8px}
+    .toolbar{display:flex;gap:8px;align-items:center}
+    button{background:var(--panel);border:1px solid rgba(255,255,255,0.03);padding:8px 10px;border-radius:8px;color:inherit;cursor:pointer}
+    .btn-primary{background:var(--accent);color:white}
+    input[type=range]{width:100%}
+    .panel{background:rgba(255,255,255,0.02);padding:10px;border-radius:10px;margin-bottom:10px}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    .layers{max-height:200px;overflow:auto}
+    .layer-item{display:flex;justify-content:space-between;padding:6px;border-radius:6px;margin-bottom:6px;background:rgba(255,255,255,0.01)}
+    .footer{display:flex;justify-content:space-between;align-items:center;padding:6px 8px}
+    .canvas-area{background:#0b1220;border-radius:12px;padding:8px;display:flex;flex:1;align-items:center;justify-content:center}
+    #editor{border-radius:10px;background:#081223}
+    .drop-hint{color:var(--muted);font-size:13px}
+    .kbd{background:#071428;padding:4px 6px;border-radius:6px;font-size:12px;border:1px solid rgba(255,255,255,0.03)}
+    .row{display:flex;gap:8px}
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <h3>Pro Image Editor</h3>
+    <div class="panel">
+      <label>Open / Import</label>
+      <div class="row">
+        <input id="fileInput" type="file" accept="image/*" />
+        <button id="openUrlBtn">Open URL</button>
+      </div>
+      <small class="drop-hint">Or drag & drop images anywhere onto the canvas area.</small>
+    </div>
+
+    <div class="panel">
+      <label>Tools</label>
+      <div class="row">
+        <button id="selectTool" class="kbd">Select (V)</button>
+        <button id="drawTool" class="kbd">Brush (B)</button>
+        <button id="textTool" class="kbd">Text (T)</button>
+        <button id="cropBtn">Crop</button>
+        <button id="eraserBtn">Eraser</button>
+      </div>
+      <div style="margin-top:8px">
+        <label>Brush size</label>
+        <input id="brushSize" type="range" min="1" max="100" value="8" />
+      </div>
+    </div>
+
+    <div class="panel">
+      <label>Adjustments</label>
+      <label>Brightness <input id="brightness" type="range" min="-1" max="1" step="0.01" value="0" /></label>
+      <label>Contrast <input id="contrast" type="range" min="-1" max="1" step="0.01" value="0" /></label>
+      <label>Saturation <input id="saturation" type="range" min="-1" max="1" step="0.01" value="0" /></label>
+      <label>Blur <input id="blur" type="range" min="0" max="20" step="0.5" value="0" /></label>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button id="applyFilters">Apply</button>
+        <button id="resetFilters">Reset</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <label>Quick Filters</label>
+      <div class="row" style="flex-wrap:wrap">
+        <button data-filter="grayscale">Grayscale</button>
+        <button data-filter="sepia">Sepia</button>
+        <button data-filter="invert">Invert</button>
+        <button data-filter="vintage">Vintage</button>
+        <button data-filter="kodachrome">Kodachrome</button>
+        <button data-filter="clarity">Clarity</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <label>Layers</label>
+      <div class="layers" id="layers"></div>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button id="bringForward">Up</button>
+        <button id="sendBack">Down</button>
+        <button id="deleteLayer">Delete</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <label>Export</label>
+      <div style="display:flex;gap:6px">
+        <button id="exportPNG" class="btn-primary">Export PNG</button>
+        <button id="exportJPG">Export JPG</button>
+      </div>
+      <div style="margin-top:6px">
+        <label>Canvas size</label>
+        <input id="canvasW" type="number" value="1200" style="width:45%" />
+        <input id="canvasH" type="number" value="800" style="width:45%" />
+        <button id="resizeCanvas">Resize</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <label>History / Shortcuts</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button id="undo">Undo (Ctrl+Z)</button>
+        <button id="redo">Redo (Ctrl+Y)</button>
+        <button id="zoomIn">Zoom +</button>
+        <button id="zoomOut">Zoom -</button>
+        <button id="resetView">Reset View</button>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="canvas-wrap">
+    <div class="toolbar">
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="newBtn">New (Ctrl+N)</button>
+        <button id="openExample">Example</button>
+        <button id="clearAll">Clear</button>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <div class="kbd">Zoom: <span id="zoomVal">100%</span></div>
+        <div class="kbd">Selected: <span id="selInfo">None</span></div>
+      </div>
+    </div>
+
+    <div class="canvas-area">
+      <canvas id="editor" width="1200" height="800"></canvas>
+    </div>
+
+    <div class="footer">
+      <div style="font-size:13px">Drag & drop images • Multiple layers • Undo/Redo • Brush/Text/Shapes</div>
+      <div>
+        <small style="color:var(--muted)">Pro Editor — Single file demo</small>
+      </div>
+    </div>
+  </div>
+
+<script>
+// Pro Image Editor - single file
+const canvas = new fabric.Canvas('editor', { backgroundColor: '#0b1220', preserveObjectStacking: true });
+canvas.selection = true;
+let history = []; let historyIndex = -1; let isDrawing=false; let cropMode=false; let cropRect=null;
+const $ = id=>document.getElementById(id);
+
+// Init
+function pushHistory(){
+  // snapshot JSON (lightweight)
+  const json = JSON.stringify(canvas.toDatalessJSON(['selectable']));
+  historyIndex++; history = history.slice(0,historyIndex); history.push(json);
+}
+function restoreHistory(idx){ if(idx<0||idx>=history.length) return; canvas.loadFromJSON(history[idx],()=>{ canvas.renderAll(); }); historyIndex=idx; }
+
+// Initial push
+pushHistory();
+
+// File open
+$('fileInput').addEventListener('change', e=>{
+  const f = e.target.files[0]; if(!f) return; const reader = new FileReader();
+  reader.onload = function(ev){ fabric.Image.fromURL(ev.target.result, img=>{ img.set({ left: 50, top: 50, angle:0, selectable:true }); canvas.add(img); canvas.setActiveObject(img); pushHistory(); refreshLayers(); }); }
+  reader.readAsDataURL(f);
+});
+
+// Drag & drop
+const area = document.querySelector('.canvas-area');
+area.addEventListener('dragover', e=>{ e.preventDefault(); area.style.outline='2px dashed rgba(255,255,255,0.06)'; });
+area.addEventListener('dragleave', e=>{ area.style.outline=''; });
+area.addEventListener('drop', e=>{ e.preventDefault(); area.style.outline=''; const f = e.dataTransfer.files[0]; if(f) { const reader=new FileReader(); reader.onload=(ev)=>{ fabric.Image.fromURL(ev.target.result, img=>{ img.set({ left: 50, top: 50, selectable:true }); canvas.add(img); canvas.setActiveObject(img); pushHistory(); refreshLayers(); }); }; reader.readAsDataURL(f); } });
+
+// Open URL prompt
+$('openUrlBtn').addEventListener('click', ()=>{
+  const url = prompt('Image URL (CORS may block some sources):'); if(!url) return;
+  fabric.Image.fromURL(url, img=>{ img.set({ left:20, top:20, selectable:true }); canvas.add(img); canvas.setActiveObject(img); pushHistory(); refreshLayers(); }, { crossOrigin: 'anonymous' });
+});
+
+// Tools
+$('selectTool').addEventListener('click', ()=>{ canvas.isDrawingMode=false; isDrawing=false; canvas.selection=true; });
+$('drawTool').addEventListener('click', ()=>{ canvas.isDrawingMode=true; isDrawing=true; });
+$('textTool').addEventListener('click', ()=>{ const txt = new fabric.IText('Double-click to edit', { left:60, top:60, fontSize:28, fill:'#ffffff' }); canvas.add(txt); canvas.setActiveObject(txt); pushHistory(); refreshLayers(); });
+
+$('brushSize').addEventListener('input', e=>{ canvas.freeDrawingBrush.width = parseInt(e.target.value,10); });
+canvas.freeDrawingBrush = new fabric.PencilBrush(canvas); canvas.freeDrawingBrush.width = 8;
+
+// Eraser (simple erase by drawing white big brush on a rasterized layer)
+$('eraserBtn').addEventListener('click', ()=>{
+  alert('Eraser simulated: rasterize object to image, then paint transparent areas. For per-pixel eraser consider advanced libs.');
+});
+
+// Crop
+$('cropBtn').addEventListener('click', ()=>{
+  if(cropMode){ // finish crop
+    if(cropRect){
+      const left = cropRect.left, top = cropRect.top, width = cropRect.width*cropRect.scaleX, height = cropRect.height*cropRect.scaleY;
+      const dataUrl = canvas.toDataURL({ left, top, width, height });
+      canvas.clear(); fabric.Image.fromURL(dataUrl, img=>{ canvas.setBackgroundColor('#0b1220', canvas.renderAll.bind(canvas)); canvas.add(img); img.set({left:0,top:0}); pushHistory(); refreshLayers(); });
+      cropRect=null; cropMode=false; return;
+    }
+  } else {
+    cropMode=true; cropRect = new fabric.Rect({ left:100, top:100, width:400, height:300, fill:'rgba(255,255,255,0.08)', stroke:'#fff', strokeDashArray:[4,4], selectable:true }); canvas.add(cropRect); canvas.setActiveObject(cropRect);
+  }
+});
+
+// Quick filters
+document.querySelectorAll('[data-filter]').forEach(btn=>btn.addEventListener('click', e=>{
+  const f = e.target.dataset.filter;
+  canvas.getObjects().forEach(obj=>{ if(obj.type==='image') applyQuickFilter(obj,f); }); canvas.renderAll(); pushHistory();
+}));
+function applyQuickFilter(img, name){
+  switch(name){
+    case 'grayscale': img.filters=[new fabric.Image.filters.Grayscale()]; break;
+    case 'sepia': img.filters=[new fabric.Image.filters.Sepia()]; break;
+    case 'invert': img.filters=[new fabric.Image.filters.Invert()]; break;
+    case 'vintage': img.filters=[ new fabric.Image.filters.Sepia(), new fabric.Image.filters.Convolute({matrix:[-1,-1,-1,-1,9,-1,-1,-1,-1]}) ]; break;
+    case 'kodachrome': img.filters=[ new fabric.Image.filters.ColorMatrix({ 
+      matrix: [1.1288, -0.3966, -0.0396, 0, 0, -0.1641, 1.0836, -0.0544, 0, 0, -0.1679, -0.5608, 1.7197, 0, 0, 0,0,0,1,0]
+    })]; break;
+    case 'clarity': img.filters=[ new fabric.Image.filters.Convolute({matrix:[0,-1,0,-1,5,-1,0,-1,0]}) ]; break;
+  }
+  img.applyFilters();
+}
+
+// Adjustments
+$('applyFilters').addEventListener('click', ()=>{
+  const b = parseFloat($('brightness').value); const c = parseFloat($('contrast').value); const s = parseFloat($('saturation').value); const bl = parseFloat($('blur').value);
+  canvas.getObjects().forEach(obj=>{ if(obj.type==='image'){
+    obj.filters = obj.filters || [];
+    // remove existing adjustment filters
+    obj.filters = obj.filters.filter(f=>!(f.type && ['Brightness','Contrast','Saturation','Blur'].includes(f.type)));
+    if(b!==0) obj.filters.push(new fabric.Image.filters.Brightness({ brightness: b }));
+    if(c!==0) obj.filters.push(new fabric.Image.filters.Contrast({ contrast: c }));
+    if(s!==0) obj.filters.push(new fabric.Image.filters.Saturation({ saturation: s }));
+    if(bl>0) obj.filters.push(new fabric.Image.filters.Blur({ blur: bl/50 }));
+    obj.applyFilters();
+  }});
+  canvas.renderAll(); pushHistory();
+});
+$('resetFilters').addEventListener('click', ()=>{ $('brightness').value=0; $('contrast').value=0; $('saturation').value=0; $('blur').value=0; canvas.getObjects().forEach(o=>{ if(o.type==='image'){ o.filters=[]; o.applyFilters(); }}); canvas.renderAll(); pushHistory(); });
+
+// Layers list
+function refreshLayers(){ const wrap = $('layers'); wrap.innerHTML=''; const objs = canvas.getObjects().slice().reverse(); objs.forEach((o,i)=>{
+  const div = document.createElement('div'); div.className='layer-item'; div.innerHTML = `<div style="flex:1">${o.type} ${o.name?'- '+o.name:''}</div><div style="display:flex;gap:6px"><button class='selectLayer'>Select</button></div>`;
+  div.querySelector('.selectLayer').onclick = ()=>{ canvas.setActiveObject(o); canvas.renderAll(); };
+  wrap.appendChild(div);
+}); }
+canvas.on('object:added', refreshLayers); canvas.on('object:removed', refreshLayers); canvas.on('object:modified', ()=>{ pushHistory(); refreshLayers(); });
+
+// Bring forward / send back / delete
+$('bringForward').addEventListener('click', ()=>{ const a = canvas.getActiveObject(); if(a) canvas.bringForward(a); canvas.renderAll(); pushHistory(); refreshLayers(); });
+$('sendBack').addEventListener('click', ()=>{ const a = canvas.getActiveObject(); if(a) canvas.sendBackwards(a); canvas.renderAll(); pushHistory(); refreshLayers(); });
+$('deleteLayer').addEventListener('click', ()=>{ const a = canvas.getActiveObject(); if(a){ canvas.remove(a); pushHistory(); refreshLayers(); }});
+
+// Export
+$('exportPNG').addEventListener('click', ()=>{ const data = canvas.toDataURL({ format:'png', multiplier:1 }); downloadDataUrl(data,'edited-image.png'); });
+$('exportJPG').addEventListener('click', ()=>{ const data = canvas.toDataURL({ format:'jpeg', quality:0.9 }); downloadDataUrl(data,'edited-image.jpg'); });
+function downloadDataUrl(data, filename){ const a = document.createElement('a'); a.href=data; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); }
+
+// Canvas resize
+$('resizeCanvas').addEventListener('click', ()=>{
+  const w = parseInt($('canvasW').value,10); const h = parseInt($('canvasH').value,10);
+  if(!w||!h) return alert('Invalid size');
+  const bg = canvas.backgroundColor; const data = canvas.toDataURL({ format:'png' });
+  canvas.clear(); canvas.setWidth(w); canvas.setHeight(h); canvas.renderAll(); fabric.Image.fromURL(data, img=>{ img.set({ left:0, top:0, selectable:false }); canvas.add(img); canvas.sendToBack(img); canvas.setBackgroundColor(bg, canvas.renderAll.bind(canvas)); pushHistory(); refreshLayers(); });
+});
+
+// Undo / Redo
+$('undo').addEventListener('click', ()=>{ if(historyIndex>0) restoreHistory(historyIndex-1); });
+$('redo').addEventListener('click', ()=>{ if(historyIndex<history.length-1) restoreHistory(historyIndex+1); });
+
+// Zoom
+let currentZoom = 1;
+$('zoomIn').addEventListener('click', ()=>{ currentZoom = Math.min(4, currentZoom+0.1); canvas.setZoom(currentZoom); $('zoomVal').innerText = Math.round(currentZoom*100)+'%'; });
+$('zoomOut').addEventListener('click', ()=>{ currentZoom = Math.max(0.2, currentZoom-0.1); canvas.setZoom(currentZoom); $('zoomVal').innerText = Math.round(currentZoom*100)+'%'; });
+$('resetView').addEventListener('click', ()=>{ currentZoom=1; canvas.setViewportTransform([1,0,0,1,0,0]); canvas.setZoom(1); $('zoomVal').innerText='100%'; });
+
+// New / Example / Clear
+$('newBtn').addEventListener('click', ()=>{ canvas.clear(); canvas.setBackgroundColor('#0b1220', canvas.renderAll.bind(canvas)); pushHistory(); refreshLayers(); });
+$('openExample').addEventListener('click', ()=>{
+  const url='https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?w=1200&auto=format&fit=crop'; fabric.Image.fromURL(url, img=>{ img.set({ left:0, top:0, selectable:true }); canvas.add(img); canvas.sendToBack(img); pushHistory(); refreshLayers(); }, {crossOrigin:'anonymous'});
+});
+$('clearAll').addEventListener('click', ()=>{ if(confirm('Clear all objects?')){ canvas.clear(); canvas.setBackgroundColor('#0b1220', canvas.renderAll.bind(canvas)); pushHistory(); refreshLayers(); }});
+
+// Selection info
+canvas.on('selection:created', e=>{ $('selInfo').innerText = e.selected.length+' objects'; });
+canvas.on('selection:updated', e=>{ $('selInfo').innerText = e.selected.length+' objects'; });
+canvas.on('selection:cleared', ()=>{ $('selInfo').innerText = 'None'; });
+
+// Keyboard shortcuts
+window.addEventListener('keydown', e=>{
+  if(e.ctrlKey && e.key==='z'){ e.preventDefault(); if(historyIndex>0) restoreHistory(historyIndex-1); }
+  if(e.ctrlKey && (e.key==='y' || (e.shiftKey && e.key==='Z'))){ e.preventDefault(); if(historyIndex<history.length-1) restoreHistory(historyIndex+1); }
+  if(e.key==='b'){$('drawTool').click();}
+  if(e.key==='v'){$('selectTool').click();}
+  if(e.key==='t'){$('textTool').click();}
+  if(e.key==='+'){$('zoomIn').click();}
+  if(e.key==='-'){$('zoomOut').click();}
+});
+
+// Auto push history for major changes
+canvas.on('object:modified', ()=>{ pushHistory(); });
+canvas.on('object:added', ()=>{ pushHistory(); });
+canvas.on('object:removed', ()=>{ pushHistory(); });
+
+// Keep layer list updated
+refreshLayers();
+
+// Lightweight note: Fabric.js runs many filters client-side. For professional-level performance (non-destructive edits, RAW support, advanced selection/mask tools, content-aware fill, frequency separation, GPU-accelerated filters) you'd integrate a WASM/worker-backed image processing library or server-side processing. This demo shows a broad set of features useful for many workflows.
+
+</script>
+</body>
+</html>
